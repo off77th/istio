@@ -1,0 +1,34 @@
+name: CI
+
+on: [push]
+
+jobs:
+  build:
+    name: Build Bookinfo details image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Log into registry
+        uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
+        with:
+          registry: ${{ secrets.ACR_ENDPOINT }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}    
+
+#       - name: Build & Push
+#         uses: docker/build-push-action@v2
+#         with:
+# #           context: .
+#           dockerfile: samples/bookinfo/src/details/Dockerfile
+#           push: true
+#           tags: ${{ secrets.ACR_ENDPOINT }}/istio/service/details:latest
+#           */
+
+      - name: Build service and push
+        shell: bash
+        run: |
+          pwd
+          cd samples/bookinfo
+          src/build-services.sh 1.0.0 ${{ secrets.ACR_ENDPOINT }}/service/details
