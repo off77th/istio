@@ -17,18 +17,9 @@ jobs:
           username: ${{ secrets.ACR_USERNAME }}
           password: ${{ secrets.ACR_PASSWORD }}    
 
-#       - name: Build & Push
-#         uses: docker/build-push-action@v2
-#         with:
-# #           context: .
-#           dockerfile: samples/bookinfo/src/details/Dockerfile
-#           push: true
-#           tags: ${{ secrets.ACR_ENDPOINT }}/istio/service/details:latest
-#           */
-
       - name: Build service and push
         shell: bash
         run: |
-          pwd
           cd samples/bookinfo
-          src/build-services.sh 1.0.0 ${{ secrets.ACR_ENDPOINT }}/service/details
+          ./build_push_update_images.sh 1.16.3 --prefix=${{ secrets.ACR_ENDPOINT }}
+        # src/build-services.sh 1.0.0 ${{ secrets.ACR_ENDPOINT }}
