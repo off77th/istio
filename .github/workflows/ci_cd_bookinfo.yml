@@ -1,0 +1,102 @@
+name: ci_cd_bookinfo
+
+on:
+  push:
+    branches:
+      - master
+      # - feature/*
+  # Allows manual trigger of pipeline
+  workflow_dispatch:
+    inputs:
+      images_version:
+        description: 'Images version'
+        required: true
+        default: '1.16.3'
+
+
+jobs:
+### CI job ###
+  build:
+    name: Build Bookinfo and push to ACR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      # - name: Log into registry
+      #   uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
+      #   with:
+      #     registry: ${{ secrets.ACR_ENDPOINT }}
+      #     username: ${{ secrets.ACR_USERNAME }}
+      #     password: ${{ secrets.ACR_PASSWORD }}    
+
+      # - name: Build service and push
+      #   shell: bash
+      #   working-directory: samples/bookinfo
+      #   run: |
+      #     ./build_push_update_images.sh ${{ github.event.inputs.images_version }} --prefix=${{ secrets.ACR_ENDPOINT }}
+      
+      - name: Set env variables
+        shell: bash
+        run: |
+          echo "${{ github.event.inputs.images_version }}"
+          echo "${images_version}"
+          echo "IMAGE_VERSION=${images_version}" >> $GITHUB_ENV
+          echo $IMAGE_VERSION
+
+      - name: Replace IMAGE_VERSION in bookinfo.yaml
+        shell: bash
+        working-directory: samples/bookinfo/platform/kube/
+        run: |
+          cat bookinfo.yaml | sed -e 's/IMAGE_VERSION/${IMAGE_VERSION}/g' > bookinfo_edited.yaml
+
+      # - name: Verify bookinfo_edited config
+      #   shell: bash
+      #   working-directory: samples/bookinfo/platform/kube/
+      #   run: |
+      #     cat bookinfo_edited.yaml
+
+      # - name: Save deployment config
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: bookinfo_edited.yaml
+      #     path: samples/bookinfo/platform/kube/bookinfo.yaml
+      #     retention-days: 5
+  
+# ### CD job ###
+#   deploy:
+#     name: Deploy Bookinfo to AKS
+#     runs-on: ubuntu-latest
+#     environment: development
+#     steps:
+#       # - name: Azure login
+#       #   id: login
+#       #   uses: azure/login@v1.4.3
+#       #   with:
+#       #     creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+#       # - name: Set AKS context
+#       #   id: set-context
+#       #   uses: azure/aks-set-context@v3
+#       #   with:
+#       #     resource-group: $RESOURCE_GROUP
+#       #     cluster-name: $AKS_NAME
+
+#       # - name: Setup kubectl
+#       #   id: install-kubectl
+#       #   uses: azure/setup-kubectl@v3
+
+#       - name: Download a single artifact
+#         uses: actions/download-artifact@v3
+#         with:
+#           name: bookinfo_edited.yaml
+
+#       - name: Preview bookinfo_edited.yaml config
+#         shell: bash
+#         run: |
+#           cat bookinfo_edited.yaml
+
+#       # - name: Kubectl apply
+#       #   shell: bash
+#       #   run: |
+#       #     kubectl apply -f bookinfo.yaml
