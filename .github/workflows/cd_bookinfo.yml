@@ -1,0 +1,47 @@
+name: cd_bookinfo
+
+on:
+  push:
+    branches:
+      - master
+  # Allows manual trigger of pipeline
+  workflow_dispatch:
+
+
+jobs:
+  deploy:
+    name: Deploy job
+    runs-on: ubuntu-latest
+    environment: development
+    steps:
+      # - name: Azure login
+      #   id: login
+      #   uses: azure/login@v1.4.3
+      #   with:
+      #     creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # - name: Set AKS context
+      #   id: set-context
+      #   uses: azure/aks-set-context@v3
+      #   with:
+      #     resource-group: $RESOURCE_GROUP
+      #     cluster-name: $AKS_NAME
+
+      # - name: Setup kubectl
+      #   id: install-kubectl
+      #   uses: azure/setup-kubectl@v3
+
+      - name: Download a single artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: bookinfo.yaml
+
+      - name: Preview bookinfo.yaml config
+        shell: bash
+        run: |
+          cat bookinfo.yaml
+
+      # - name: Kubectl apply
+      #   shell: bash
+      #   run: |
+      #     kubectl apply -f bookinfo.yaml
