@@ -4,99 +4,154 @@ on:
   push:
     branches:
       - master
-      # - feature/*
+      - feature/*
   # Allows manual trigger of pipeline
   workflow_dispatch:
     inputs:
+      skip_ci:
+        description: 'Skip CI'
+        type: boolean
+        required: true
+        default: false
       images_version:
         description: 'Images version'
+        type: string
         required: true
         default: '1.16.3'
+      helm_deploy:
+        description: 'Deploy using Helm'
+        type: boolean
+        required: false
+        default: true
 
+env:
+  IMAGES_VERSION: '1.16.3'
 
 jobs:
 ### CI job ###
   build:
+    # if: "${{ github.event.inputs.skip_ci != 'true' }}"
+    if: false
     name: Build Bookinfo and push to ACR
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
 
-      # - name: Log into registry
-      #   uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
-      #   with:
-      #     registry: ${{ secrets.ACR_ENDPOINT }}
-      #     username: ${{ secrets.ACR_USERNAME }}
-      #     password: ${{ secrets.ACR_PASSWORD }}    
+      - name: Log into registry
+        uses: docker/login-action@f054a8b539a109f9f41c372932f1ae047eff08c9
+        with:
+          registry: ${{ secrets.ACR_ENDPOINT }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}    
 
-      # - name: Build service and push
-      #   shell: bash
-      #   working-directory: samples/bookinfo
-      #   run: |
-      #     ./build_push_update_images.sh ${{ github.event.inputs.images_version }} --prefix=${{ secrets.ACR_ENDPOINT }}
-      
-      - name: Set env variables
+      - name: Build service and push
         shell: bash
+        working-directory: samples/bookinfo
         run: |
-          echo "${{ github.event.inputs.images_version }}"
-          echo "${images_version}"
-          echo "IMAGE_VERSION=${images_version}" >> $GITHUB_ENV
-          echo $IMAGE_VERSION
+          ./build_push_update_images.sh ${{ github.event.inputs.images_version }} --prefix=${{ secrets.ACR_ENDPOINT }}
 
       - name: Replace IMAGE_VERSION in bookinfo.yaml
         shell: bash
+        if: ${{ github.event.inputs.helm_deploy }} != 'true'
         working-directory: samples/bookinfo/platform/kube/
         run: |
-          cat bookinfo.yaml | sed -e 's/IMAGE_VERSION/${IMAGE_VERSION}/g' > bookinfo_edited.yaml
+          echo ${{ env.IMAGES_VERSION }}
+          cat bookinfo.yaml | sed -e 's/IMAGE_VERSION/${{ env.IMAGES_VERSION }}/g' > bookinfo_edited.yaml
 
-      # - name: Verify bookinfo_edited config
-      #   shell: bash
-      #   working-directory: samples/bookinfo/platform/kube/
-      #   run: |
-      #     cat bookinfo_edited.yaml
+      - name: Verify bookinfo_edited config
+        shell: bash
+        if: ${{ github.event.inputs.helm_deploy }} != 'true'
+        working-directory: samples/bookinfo/platform/kube/
+        run: |
+          cat bookinfo_edited.yaml
 
-      # - name: Save deployment config
-      #   uses: actions/upload-artifact@v3
-      #   with:
-      #     name: bookinfo_edited.yaml
-      #     path: samples/bookinfo/platform/kube/bookinfo.yaml
-      #     retention-days: 5
-  
-# ### CD job ###
-#   deploy:
-#     name: Deploy Bookinfo to AKS
-#     runs-on: ubuntu-latest
-#     environment: development
-#     steps:
-#       # - name: Azure login
-#       #   id: login
-#       #   uses: azure/login@v1.4.3
-#       #   with:
-#       #     creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Save deployment config
+        uses: actions/upload-artifact@v3
+        if: ${{ github.event.inputs.helm_deploy }} != 'true'
+        with:
+          name: bookinfo_edited.yaml
+          path: samples/bookinfo/platform/kube/bookinfo_edited.yaml
+          retention-days: 5
 
-#       # - name: Set AKS context
-#       #   id: set-context
-#       #   uses: azure/aks-set-context@v3
-#       #   with:
-#       #     resource-group: $RESOURCE_GROUP
-#       #     cluster-name: $AKS_NAME
+### Kubectl CD job ###
+  kubectl-deploy:
+    # if: "${{ github.event.inputs.helm_deploy != 'true' }}"
+    if: false
+    needs:
+      - build
+    name: Deploy to AKS via Kubectl
+    runs-on: ubuntu-latest
+    environment: development
+    steps:
+      - name: Azure login
+        id: login
+        uses: azure/login@v1.4.3
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-#       # - name: Setup kubectl
-#       #   id: install-kubectl
-#       #   uses: azure/setup-kubectl@v3
+      - name: Set AKS context
+        id: set-context
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: ${{ vars.RESOURCE_GROUP }}
+          cluster-name: ${{ vars.AKS_NAME }}
 
-#       - name: Download a single artifact
-#         uses: actions/download-artifact@v3
-#         with:
-#           name: bookinfo_edited.yaml
+      - name: Setup kubectl
+        id: install-kubectl
+        uses: azure/setup-kubectl@v3
+      
+      - name: Download a single artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: bookinfo_edited.yaml
 
-#       - name: Preview bookinfo_edited.yaml config
-#         shell: bash
-#         run: |
-#           cat bookinfo_edited.yaml
+      - name: Preview bookinfo_edited.yaml config
+        shell: bash
+        run: |
+          cat /home/runner/work/istio/istio/bookinfo_edited.yaml
 
-#       # - name: Kubectl apply
-#       #   shell: bash
-#       #   run: |
-#       #     kubectl apply -f bookinfo.yaml
+      - name: Kubectl apply
+        shell: bash
+        run: |
+          kubectl apply -f bookinfo.yaml
+
+### Helm CD job ###
+  helm-deploy:
+    # if: "${{ github.event.inputs.helm_deploy == 'true' }}"
+    if: true
+    name: Deploy to AKS via Helm
+    runs-on: ubuntu-latest
+    environment: development
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Azure login
+        id: login
+        uses: azure/login@v1.4.3
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set AKS context
+        id: set-context
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: ${{ vars.RESOURCE_GROUP }}
+          cluster-name: ${{ vars.AKS_NAME }}
+
+      - uses: azure/setup-helm@v3
+        with:
+          version: 'latest' 
+          token: ${{ secrets.GITHUB_TOKEN }}
+        id: install
+
+      - name: Helm preview
+        shell: bash
+        working-directory: samples/bookinfo/platform/
+        run: |
+          helm install reviews-v2 ./microservice-template \
+          --dry-run --debug
+          
+        # --dry-run --debug \
+        # --set image=${{ secrets.ACR_ENDPOINT }}/examples-bookinfo-reviews-v2:${{ env.IMAGES_VERSION }}
