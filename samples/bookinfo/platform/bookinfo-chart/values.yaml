@@ -1,27 +1,14 @@
-# Default values for microservice-template.
+# Default values for bookinfo-chart.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-##################################################################################################
-# Reviews service default values
-##################################################################################################
 replicaCount: 1
 
-# selectorLabels:
-#   app: reviews
-#   version: v2
-
-serviceAccountName: bookinfo-reviews
-
 image:
-  repository: "istio.azurecr.io/examples-bookinfo-reviews-v2"
-  # repository: "istio.azurecr.io/examples-bookinfo-reviews-v2"
-  pullPolicy: Always
+  repository: nginx
+  pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "latest"
-  # env:
-  #   - name: LOG_DIR
-  #     value: "/tmp/logs"
+  tag: ""
 
 imagePullSecrets: []
 nameOverride: ""
@@ -38,8 +25,8 @@ serviceAccount:
 
 podAnnotations: {}
 
-podSecurityContext:
-  fsGroup: 2000
+podSecurityContext: {}
+  # fsGroup: 2000
 
 securityContext: {}
   # capabilities:
@@ -51,7 +38,7 @@ securityContext: {}
 
 service:
   type: ClusterIP
-  port: 9080
+  port: 80
 
 ingress:
   enabled: false
